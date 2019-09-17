@@ -1,0 +1,76 @@
+---
+title: "Lab 1"
+author: "Emil Luusua"
+date: "17 September 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(bnlearn)
+library(gRain)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```
+data('asia')
+```
+
+## Question 1
+
+Two runs of the hill-climbing algorithm can return non-equivalent BN structures. This can easily be shown by modifying the iss score parameter, which controls the imaginary sample size of the BDeu score.
+
+```{r, echo=FALSE}
+plot(hc(asia, score = 'bde', iss = 1))
+plot(hc(asia, score = 'bde', iss = 2))
+```
+
+Note the additional arc between from 'A' to 'T' in the second plot.
+
+Kolla upp vad imaginary/equivalent sample size faktiskt gör.
+
+## Question 2
+
+We start by splitting the data into train and test sets. Also extract labels S from the test set.
+```{r}
+set.seed(1)
+sample_size <- floor(0.8 * nrow(asia))
+train_indices <- sample(seq_len(nrow(asia)), size = sample_size)
+
+asia_train <- asia[train_indices, ]
+asia_test <- asia[-train_indices, ]
+labels <- asia_test['S']
+asia_test$S <- NULL
+```
+
+We then learn the structure and parameters for the BN from our training data using use Hill Climbing and Maximum Likelihood parameter estimation.
+```{r}
+dag <- hc(asia_train)
+fit <- bn.fit(dag, asia_train)
+```
+
+We perform classification of the test set using exact inference in gRain.
+```{r}
+net <- compile(as.grain(fit))
+for (i in seq_len(nrow(asia_test))) {
+
+  evidence <- list()
+  for (col in colnames(asia_test)) {
+    evidence <- append(evidence, as.character(asia_test[i, col]))
+  }
+  
+  new_net <- setFinding(net, nodes=colnames(asia_test), states=evidence)
+  print(querygrain(new_net))
+}
+```
+
+Compare the results when using the true structure, with parameters still learned from the training data.
+```{r}
+true_dag <- model2network("[A][S][T|A][L|S][B|S][D|B:E][E|T:L][X|E]")
+true_fit <- bn.fit(true_dag, asia_train)
+```
