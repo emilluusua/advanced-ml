@@ -9,30 +9,21 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(bnlearn)
 library(gRain)
-```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```
+library(caret)
 data('asia')
 ```
+
 
 ## Question 1
 
 Two runs of the hill-climbing algorithm can return non-equivalent BN structures. This can easily be shown by modifying the iss score parameter, which controls the imaginary sample size of the BDeu score.
 
-```{r, echo=FALSE}
+```{r}
 plot(hc(asia, score = 'bde', iss = 1))
 plot(hc(asia, score = 'bde', iss = 2))
 ```
 
 Note the additional arc between from 'A' to 'T' in the second plot.
-
-Kolla upp vad imaginary/equivalent sample size faktiskt gör.
 
 ## Question 2
 
@@ -54,23 +45,127 @@ dag <- hc(asia_train)
 fit <- bn.fit(dag, asia_train)
 ```
 
-We perform classification of the test set using exact inference in gRain.
+We perform classification of the test set using exact inference in gRain and display the results in a confusion matrix using caret.
 ```{r}
 net <- compile(as.grain(fit))
-for (i in seq_len(nrow(asia_test))) {
+data <- list()
 
+for (i in seq_len(nrow(asia_test))) {
   evidence <- list()
+  
   for (col in colnames(asia_test)) {
     evidence <- append(evidence, as.character(asia_test[i, col]))
   }
   
-  new_net <- setFinding(net, nodes=colnames(asia_test), states=evidence)
-  print(querygrain(new_net))
+  posterior <- querygrain(setFinding(net, nodes=colnames(asia_test), states=evidence))$S
+  
+  if (posterior['yes'] > posterior['no']) {
+    # Classify as positive
+    data <- append(data, 'yes')
+    
+  } else {
+    # Classify as negative
+    data <- append(data, 'no')
+  }
 }
+confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
 ```
 
-Compare the results when using the true structure, with parameters still learned from the training data.
+Compare the results when using the true structure, with parameters still learned from the training data. This is shown to be exactly the same.
 ```{r}
 true_dag <- model2network("[A][S][T|A][L|S][B|S][D|B:E][E|T:L][X|E]")
 true_fit <- bn.fit(true_dag, asia_train)
+
+true_net <- compile(as.grain(true_fit))
+data <- list()
+
+for (i in seq_len(nrow(asia_test))) {
+  evidence <- list()
+  
+  for (col in colnames(asia_test)) {
+    evidence <- append(evidence, as.character(asia_test[i, col]))
+  }
+  
+  posterior <- querygrain(setFinding(true_net, nodes=colnames(asia_test), states=evidence))$S
+  
+  if (posterior['yes'] > posterior['no']) {
+    # Classify as positive
+    data <- append(data, 'yes')
+    
+  } else {
+    # Classify as negative
+    data <- append(data, 'no')
+  }
+}
+confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
 ```
+
+## Question 3
+
+What is the Markov blanket of S?
+```{r}
+mb(dag, 'S')
+```
+
+We thus perform the same procedure for classification as previously, only the evidence is altered such that it contains observations for L and B. Once again the results are identical.
+
+```{r}
+observations <- c('L', 'B')
+data <- list()
+
+for (i in seq_len(nrow(asia_test))) {
+  evidence <- list()
+  
+  for (col in observations) {
+    evidence <- append(evidence, as.character(asia_test[i, col]))
+  }
+  
+  posterior <- querygrain(setFinding(net, nodes=observations, states=evidence))$S
+  
+  if (posterior['yes'] > posterior['no']) {
+    # Classify as positive
+    data <- append(data, 'yes')
+    
+  } else {
+    # Classify as negative
+    data <- append(data, 'no')
+  }
+}
+confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
+```
+
+A Naïve Bayes classifier can be represented by a Bayesian network where the prediction variable is the sole parent of all other variables. This will result in the graph representing the same conditional independence as is assumed for a Naïve Bayes model.
+```{r}
+naive_dag <- model2network("[S][A|S][T|S][L|S][B|S][D|S][E|S][X|S]")
+naive_fit <- bn.fit(naive_dag, asia_train)
+plot(naive_dag)
+```
+
+Now once again perform classification of S by observing all other variables, and once again the same results are achieved.
+```{r}
+naive_net <- compile(as.grain(fit))
+data <- list()
+
+for (i in seq_len(nrow(asia_test))) {
+  evidence <- list()
+  
+  for (col in colnames(asia_test)) {
+    evidence <- append(evidence, as.character(asia_test[i, col]))
+  }
+  
+  posterior <- querygrain(setFinding(naive_net, nodes=colnames(asia_test), states=evidence))$S
+  
+  if (posterior['yes'] > posterior['no']) {
+    # Classify as positive
+    data <- append(data, 'yes')
+    
+  } else {
+    # Classify as negative
+    data <- append(data, 'no')
+  }
+}
+confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
+```
+
+## Question 5
+So throughout all experiments, the same results have been achieved using four different models of the data. How can this possibly make sense?
