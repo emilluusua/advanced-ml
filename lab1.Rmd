@@ -2,7 +2,9 @@
 title: "Lab 1"
 author: "Emil Luusua"
 date: "17 September 2019"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -19,11 +21,12 @@ data('asia')
 Two runs of the hill-climbing algorithm can return non-equivalent BN structures. This can easily be shown by modifying the iss score parameter, which controls the imaginary sample size of the BDeu score.
 
 ```{r}
-plot(hc(asia, score = 'bde', iss = 1))
+dag <- hc(asia, score = 'bde', iss = 1)
+plot(dag)
 plot(hc(asia, score = 'bde', iss = 2))
 ```
 
-Note the additional arc between from 'A' to 'T' in the second plot.
+Note the additional arc between from 'A' to 'T' in the second plot. Differences in the resulting graph such as this can occur when using different scorings since it will influence how different aspects are weighted, in the case of iss the weight given to the prior is altered.
 
 ## Question 2
 
@@ -39,9 +42,8 @@ labels <- asia_test['S']
 asia_test$S <- NULL
 ```
 
-We then learn the structure and parameters for the BN from our training data using use Hill Climbing and Maximum Likelihood parameter estimation.
+We use the structure learnt with by Hill Climbing in question 1 and learn the parameters of the model with Maximum Likelihood parameter estimation since we are not missing any data.
 ```{r}
-dag <- hc(asia_train)
 fit <- bn.fit(dag, asia_train)
 ```
 
@@ -71,7 +73,7 @@ for (i in seq_len(nrow(asia_test))) {
 confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
 ```
 
-Compare the results when using the true structure, with parameters still learned from the training data. This is shown to be exactly the same.
+We then compare the results when using the true structure, with parameters still learned from the training data. This is shown to be exactly the same.
 ```{r}
 true_dag <- model2network("[A][S][T|A][L|S][B|S][D|B:E][E|T:L][X|E]")
 true_fit <- bn.fit(true_dag, asia_train)
@@ -141,7 +143,7 @@ naive_fit <- bn.fit(naive_dag, asia_train)
 plot(naive_dag)
 ```
 
-Now once again perform classification of S by observing all other variables, and once again the same results are achieved.
+Now once again we perform classification of S by observing all other variables, and once again the same results are achieved.
 ```{r}
 naive_net <- compile(as.grain(fit))
 data <- list()
@@ -169,3 +171,7 @@ confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
 
 ## Question 5
 So throughout all experiments, the same results have been achieved using four different models of the data. How can this possibly make sense?
+
+The first three cases are quite clear, since S will have the same Markov blanket in all these graphs (L and B). As these variables are observed in each case, the S node will be independent from all other nodes. As such observing the other nodes or modeling the independencies among them will not make a difference to the classification of S.
+
+The Naïve Bayes network is quite different though, and could very well yield a different result since ALL variables will be taken into account when performing the classification in comparison to only L and B in earlier cases. The result could be better since even if the other nodes are deemed independent in the Bayes Networks, there might be a small correlation with S that could still benefit classification but was not considered worthy of the added model complexity. Or it could make the results worse by introducing false dependencies making the predictions "noisier" because of the relatively small dataset. In this case though, it seems that L and B dominate the decision made by the Naive Bayes model as well resulting in the exact same predictions.
