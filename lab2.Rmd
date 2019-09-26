@@ -10,6 +10,8 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(HMM)
+library(entropy)
+set.seed(12)
 ```
 
 
@@ -20,6 +22,7 @@ We create a Hidden Markov Model (HMM) with a hidden state Z_t that takes values 
 states <- c('z0', 'z1', 'z2', 'z3', 'z4', 'z5', 'z6', 'z7', 'z8', 'z9')
 symbols <- c('x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9')
 transProbs <- matrix(c(
+  c(0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0.5),
   c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0, 0),
   c(0, 0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
   c(0, 0, 0.5, 0.5, 0, 0, 0, 0, 0, 0),
@@ -28,8 +31,7 @@ transProbs <- matrix(c(
   c(0, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0),
   c(0, 0, 0, 0, 0, 0, 0.5, 0.5, 0, 0),
   c(0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0),
-  c(0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5),
-  c(0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0.5)), 10)
+  c(0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5)), 10)
 emissionProbs <- matrix(c(
   c(0.2, 0.2, 0.2, 0, 0, 0, 0, 0, 0.2, 0.2),
   c(0.2, 0.2, 0.2, 0.2, 0, 0, 0, 0, 0, 0.2),
@@ -48,5 +50,108 @@ hmm <- initHMM(states, symbols, transProbs = transProbs, emissionProbs = emissio
 
 ## Question 2
 ```{r}
-simHMM(hmm, 100)
+simulation <- simHMM(hmm, 100)
+print(simulation)
+```
+
+## Question 3
+```{r}
+observations <- simulation$observation
+
+alpha <- exp(forward(hmm, observations))
+filtered <- prop.table(alpha, 2)
+smoothed <- posterior(hmm, observations)
+most_probable_path <- viterbi(hmm, observations)
+```
+
+## Question 4
+```{r}
+most_probable_state <- function(x) {
+  idx <- which.max(x)
+  return(states[idx])
+}
+
+filtered_predictions <- apply(filtered, 2, most_probable_state)
+smoothed_predictions <- apply(smoothed, 2, most_probable_state)
+```
+
+Accuracy of Viterbi algorithm
+```{r}
+viterbi_results <- table(most_probable_path == simulation$states)
+print(viterbi_results['TRUE'] / sum(viterbi_results))
+```
+
+Accuracy of filtered distribution
+```{r}
+filtered_results <- table(filtered_predictions == simulation$states)
+print(filtered_results['TRUE'] / sum(filtered_results))
+```
+
+Accuracy of smoothed distribution
+```{r}
+smoothed_results <- table(smoothed_predictions == simulation$states)
+print(smoothed_results['TRUE'] / sum(smoothed_results))
+```
+
+## Question 5
+Repeat the exact same approach 10 times and print out the accuracies.
+```{r}
+viterbi_accuracies <- list()
+filtered_accuracies <- list()
+smoothed_accuracies <- list()
+  
+for(i in 1:10) {
+  simulation <- simHMM(hmm, 100)
+  observations <- simulation$observation
+  
+  alpha <- exp(forward(hmm, observations))
+  filtered <- prop.table(alpha, 2)
+  smoothed <- posterior(hmm, observations)
+  most_probable_path <- viterbi(hmm, observations)
+  
+  filtered_predictions <- apply(filtered, 2, most_probable_state)
+  smoothed_predictions <- apply(smoothed, 2, most_probable_state)
+  
+  viterbi_results <- table(most_probable_path == simulation$states)
+  viterbi_accuracies <- append(viterbi_accuracies, viterbi_results['TRUE'] / sum(viterbi_results))
+  
+  filtered_results <- table(filtered_predictions == simulation$states)
+  filtered_accuracies <- append(filtered_accuracies, filtered_results['TRUE'] / sum(filtered_results))
+  
+  smoothed_results <- table(smoothed_predictions == simulation$states)
+  smoothed_accuracies <- append(smoothed_accuracies, smoothed_results['TRUE'] / sum(smoothed_results))
+}
+
+accuracies <- matrix(c(viterbi_accuracies, filtered_accuracies, smoothed_accuracies), 3, byrow=TRUE)
+dimnames(accuracies) <- list(c('Viterbi', 'Filtered', 'Smoothed'))
+print(accuracies)
+```
+It can be seen that the accuracy of the smoothed distributions is superior to both the filtered distributions and the most probable path, and this is easily explainable. 
+Since the smoothed distribution takes the observations of *all* timesteps into account, it will perform better than the filtered distribution which only considers the *previous* ones. And though the most probable path is also calculated from all timesteps, it has the additional constraint of having  to generate a valid path, meaning that it cannot maximize the probability of correct predictions in each timestep like the smoothed distribution does.
+
+## Question 6
+With exception for the global maximum at t=0, it seems like an increased number of observations does not increase confidence in where the robot is.
+```{r}
+plot(0:99, apply(filtered, 2, entropy.empirical), type = 'l', xlab = 't', ylab = 'Entropy', 
+     main = 'Entropy of filtered distribution as a function of time t')
+```
+
+## Question 7
+We seek to compute $$p(Z^{101}|x^{0:100}) = \sum_{z^t} p(Z^{101}|z^{100})p(z^{100}|x^{0:100})$$
+where $p(Z^{101}|z^{100})$ is the transition probability and $p(z^{100}|x^{0:100})$ is the filtered probability distribution.
+```{r}
+probs <- list()
+
+for (Z in states) {
+  prob <- 0
+  
+  for (z in states) {
+    prob <- prob + hmm$transProbs[z, Z] * filtered[z, 100]
+  }
+  
+  probs <- append(probs, prob)
+}
+probs <- array(unlist(probs))
+dimnames(probs) <- list(states)
+print(probs)
 ```
