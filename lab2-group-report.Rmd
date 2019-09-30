@@ -1,7 +1,7 @@
 ---
-title: "Lab 2"
-author: "Emil Luusua"
-date: "30 September 2019"
+title: "Lab 2 Group Report"
+author: "krisi211, marpe902, erisv795, emilu795"
+date: "9/30/2019"
 output:
   pdf_document: default
   html_document: default
@@ -15,8 +15,7 @@ set.seed(12)
 ```
 
 
-## Question 1
-
+## Assignment 1
 We create a Hidden Markov Model (HMM) with a hidden state $Z^t$ that takes values $z_0-z_9$ which represent the sector where the robot is at time step t, and an observed random variable $X^t$ that takes values $x_0-x_9$ which represent the reading of the tracking device at time step $t$. 
 
 The defining characteristics of the HMM is its initial model, transition model as well as emission model. In this case we use a uniform distribution for the initial model, the transition probabilities are 0.5 to stay in the current state, and 0.5 to move to the next one, and the emission probabilities are 0.2 to observe any of the states within 2 steps of the actual one. These matrices are manually defined as follows:
@@ -50,14 +49,14 @@ hmm <- initHMM(states, symbols, transProbs = transProbs, emissionProbs = emissio
 ```
 
 
-## Question 2
+## Assignment 2
 We run a simulation of the HMM lasting for 100 time steps, producing the following robot path and observed symbols:
 ```{r}
 simulation <- simHMM(hmm, 100)
 print(simulation)
 ```
 
-## Question 3
+## Assignment 3
 Only using the observations $x^t$, the filtered and smoothed distributions can be calculated as $$p(Z^{t}|x^{0:t}) = \frac{\alpha(Z^t)}{\sum_{z^t}(\alpha(z^t))}$$ $$p(Z^{t}|x^{0:T}) = \frac{\alpha(Z^t)\beta(Z^t)}{\sum_{z^t}(\alpha(z^t)\beta(z^t))}$$ where $\alpha$ is computed with the forward function and $\beta$ is computed with the backward function of the R package hmm. The package also provides the Viterbi algorithm, which is used to compute the most probable path.
 ```{r}
 observations <- simulation$observation
@@ -70,7 +69,7 @@ smoothed <- prop.table(alpha*beta, 2)
 most_probable_path <- viterbi(hmm, observations)
 ```
 
-## Question 4
+## Assignment 4
 The most probable state in each time step is computed with the function which.max, the accuracy of each method can then be calculated by comparing the most probable states and the simulated ones.
 ```{r}
 most_probable_state <- function(x) {
@@ -100,7 +99,7 @@ smoothed_results <- table(smoothed_predictions == simulation$states)
 print(smoothed_results['TRUE'] / sum(smoothed_results))
 ```
 
-## Question 5
+## Assignment 5
 Repeat the exact same approach 10 times and print out the accuracies.
 ```{r}
 viterbi_accuracies <- list()
@@ -142,14 +141,33 @@ print(accuracies)
 It can be seen that the accuracy of the smoothed distributions is superior to both the filtered distributions and the most probable path, and this is easily explainable. 
 Since the smoothed distribution takes the observations of *all* timesteps into account, it will perform better than the filtered distribution which only considers the *previous* ones. And though the most probable path is also calculated from all timesteps, it has the additional constraint of having  to generate a valid path, meaning that it cannot maximize the probability of correct predictions in each time step like the smoothed distribution does.
 
-## Question 6
-We will examine how the number of observations affect the confidence in predictions by looking at the entropy of each time step in the filtered distribution. With exception for the global maximum at t=0, it seems like an increased number of observations does not increase confidence in where the robot is.
+## Assignment 6
+The members of the group used two different approaches to assignment 6.
+
+One approach is to calculate the entropy at each time step when using the filtered distribution, thus seeing how confident the predictions are at the beginning when only a few observations have been made in contrast to at the end when $t$ nears 100. Plotting the entropy this way gives the following graph, suggesting that more observations does not imply lower entropy (higher confidence).
 ```{r}
 plot(0:99, apply(filtered, 2, entropy.empirical), type = 'l', xlab = 't', ylab = 'Entropy', 
      main = 'Entropy of filtered distribution as a function of time t')
 ```
 
-## Question 7
+Another approach is to perform another simulation, this time using more than 100 time steps and seeing if this affects the entropy in any significant way. This approach gives the following results:
+```{r}
+sim.200 = simHMM(hmm,200)
+alpha.200 = exp(forward(hmm,sim.200$observation))
+filtered.200 = prop.table(alpha.200,2)
+```
+The entropy for 100 simulated time steps:
+```{r}
+entropy.empirical(filtered)
+```
+The entropy for 200 simulated time steps:
+```{r}
+entropy.empirical(filtered.200)
+```
+
+Since the entropy score is higher for 200 simulated time steps than for 100 simulated time steps, meaning that more simulated time steps gives more uncertainty. Therefor more observations does not mean that we better know were the robot is.
+
+## Assignment 7
 We seek to compute $$p(Z^{101}|x^{0:100}) = \sum_{z^t} p(Z^{101}|z^{100})p(z^{100}|x^{0:100})$$
 where $p(Z^{101}|z^{100})$ is the transition probability and $p(z^{100}|x^{0:100})$ is the filtered probability distribution.
 ```{r}
