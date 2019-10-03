@@ -1,0 +1,272 @@
+---
+title: "Lab 3"
+author: "Emil Luusua"
+date: "6 October 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(12)
+```
+
+
+## Question 1
+
+We start by defining the transition, emission and initial models. The functions rnorm and runif are used to sample from a normal/uniform distribution. The standard deviation of the emission model (sd) is taken as an argument to ease in question 2.
+```{r}
+transition_model <- function(prev_pos) {
+  return((rnorm(1, prev_pos, 1) + rnorm(1, prev_pos + 1, 1) + rnorm(1, prev_pos + 2, 1)) / 3)
+}
+
+emission_model <- function(pos, sd) {
+  return((rnorm(1, pos, sd) + rnorm(1, pos - 1, sd) + rnorm(1, pos + 1, sd)) / 3)
+}
+
+initial_model <- function() {
+  return(runif(1, 0, 100))
+}
+```
+
+We implement a function which performs a simulation of the state space model for 100 time steps and run it with standard deviation set to 1.
+```{r}
+simulate_SSM <- function(sd) {
+  T <- 100
+  
+  initial_pos <- initial_model()
+  initial_obs <- emission_model(initial_pos, sd)
+  
+  res <- list()
+  res$states <- rep(initial_pos, 100)
+  res$observation <- rep(initial_obs, 100)
+  
+  for (t in 2:T) {
+    res$states[t] <- transition_model(res$states[t-1])
+    res$observation[t] <- emission_model(res$states[t], sd)
+  }
+  return(res)
+}
+
+simulation <- simulate_SSM(1)
+print(simulation)
+```
+
+Next we implement the particle filter using 100 particles. The version presented by Thrun et al. in *Probabilistic Robotics* is utilized. The option of using weights for correction and the standard deviation is taken as arguments to ease in questions 2 and 3. The functions returns the belief particles at each time step.
+```{r}
+particle_filter <- function(observations, sd, use_weights) {
+  # Constants
+  T <- 100
+  M <- 100
+  
+  # Initialize variables
+  particles <- matrix(rep(0, T * M), ncol = M)
+  bel <- rep(0, M)
+  bel_bar <- rep(0, M)
+  w <- rep(1, M)
+  
+  # Generate initial particles
+  for(m in 1:M) {
+    bel[m] <- initial_model()
+  }
+  
+  for(t in 1:T) {
+    for(m in 1:M) {
+      bel_bar[m] <- transition_model(bel[m])
+      
+      if(use_weights) {
+        # Uppdatera w med hjälp av vår observation
+        w[m] <- 1
+      }
+    }
+    
+    bel <- sample(bel_bar, M, replace = TRUE, prob = w)
+    particles[t, ] <- bel
+  }
+  
+  return(particles)
+}
+```
+
+We apply the particle filter to our simulated observations and show the particles, their mean (the expected location) and the true location at time steps $t = 1, 34, 67, 100$.
+```{r}
+particles <- particle_filter(simulation$observation, 1, TRUE)
+```
+
+Particles at $t = 1$:
+```{r echo=FALSE}
+print(particles[1, ])
+```
+Expected location at $t = 1$: `r mean(particles[1, ])`  
+True location at $t = 1$: `r simulation$states[1]`
+
+Particles at $t = 34$:
+```{r echo=FALSE}
+print(particles[34, ])
+```
+Expected location at $t = 34$: `r mean(particles[34, ])`  
+True location at $t = 34$: `r simulation$states[34]`
+
+Particles at $t = 67$:
+```{r echo=FALSE}
+print(particles[67, ])
+```
+Expected location at $t = 67$: `r mean(particles[67, ])`  
+True location at $t = 67$: `r simulation$states[67]`
+
+Particles at $t =100$:
+```{r echo=FALSE}
+print(particles[100, ])
+```
+Expected location at $t = 100$: `r mean(particles[100, ])`  
+True location at $t = 100$: `r simulation$states[100]`
+
+## Question 2
+We now apply the same procedure, using standard deviations 5 and 50. The results are presented below, and the conclusion is that ...
+
+#### Standard deviation of 5
+```{r}
+sd <- 5
+simulation <- simulate_SSM(sd)
+particles <- particle_filter(simulation$observation, sd, TRUE)
+```
+
+Particles at $t = 1$:
+```{r echo=FALSE}
+print(particles[1, ])
+```
+Expected location at $t = 1$: `r mean(particles[1, ])`  
+True location at $t = 1$: `r simulation$states[1]`
+
+Particles at $t = 34$:
+```{r echo=FALSE}
+print(particles[34, ])
+```
+Expected location at $t = 34$: `r mean(particles[34, ])`  
+True location at $t = 34$: `r simulation$states[34]`
+
+Particles at $t = 67$:
+```{r echo=FALSE}
+print(particles[67, ])
+```
+Expected location at $t = 67$: `r mean(particles[67, ])`  
+True location at $t = 67$: `r simulation$states[67]`
+
+Particles at $t =100$:
+```{r echo=FALSE}
+print(particles[100, ])
+```
+Expected location at $t = 100$: `r mean(particles[100, ])`  
+True location at $t = 100$: `r simulation$states[100]`
+
+#### Standard deviation of 50
+```{r}
+sd <- 50
+simulation <- simulate_SSM(sd)
+particles <- particle_filter(simulation$observation, sd, TRUE)
+```
+
+Particles at $t = 1$:
+```{r echo=FALSE}
+print(particles[1, ])
+```
+Expected location at $t = 1$: `r mean(particles[1, ])`  
+True location at $t = 1$: `r simulation$states[1]`
+
+Particles at $t = 34$:
+```{r echo=FALSE}
+print(particles[34, ])
+```
+Expected location at $t = 34$: `r mean(particles[34, ])`  
+True location at $t = 34$: `r simulation$states[34]`
+
+Particles at $t = 67$:
+```{r echo=FALSE}
+print(particles[67, ])
+```
+Expected location at $t = 67$: `r mean(particles[67, ])`  
+True location at $t = 67$: `r simulation$states[67]`
+
+Particles at $t =100$:
+```{r echo=FALSE}
+print(particles[100, ])
+```
+Expected location at $t = 100$: `r mean(particles[100, ])`  
+True location at $t = 100$: `r simulation$states[100]`
+
+## Question 3
+We repeat the procedure one final time, with correction weights disabled. This performs significantly worse, since it means that we do not take our observations into account at all.
+
+```{r}
+sd <- 1
+simulation <- simulate_SSM(sd)
+particles <- particle_filter(simulation$observation, sd, FALSE)
+```
+
+Particles at $t = 1$:
+```{r echo=FALSE}
+print(particles[1, ])
+```
+Expected location at $t = 1$: `r mean(particles[1, ])`  
+True location at $t = 1$: `r simulation$states[1]`
+
+Particles at $t = 34$:
+```{r echo=FALSE}
+print(particles[34, ])
+```
+Expected location at $t = 34$: `r mean(particles[34, ])`  
+True location at $t = 34$: `r simulation$states[34]`
+
+Particles at $t = 67$:
+```{r echo=FALSE}
+print(particles[67, ])
+```
+Expected location at $t = 67$: `r mean(particles[67, ])`  
+True location at $t = 67$: `r simulation$states[67]`
+
+Particles at $t =100$:
+```{r echo=FALSE}
+print(particles[100, ])
+```
+Expected location at $t = 100$: `r mean(particles[100, ])`  
+True location at $t = 100$: `r simulation$states[100]`
+
+#### Standard deviation of 50
+```{r}
+sd <- 50
+simulation <- simulate_SSM(sd)
+particles <- particle_filter(simulation$observation, sd, TRUE)
+```
+
+Particles at $t = 1$:
+```{r echo=FALSE}
+print(particles[1, ])
+```
+Expected location at $t = 1$: `r mean(particles[1, ])`  
+True location at $t = 1$: `r simulation$states[1]`
+
+Particles at $t = 34$:
+```{r echo=FALSE}
+print(particles[34, ])
+```
+Expected location at $t = 34$: `r mean(particles[34, ])`  
+True location at $t = 34$: `r simulation$states[34]`
+
+Particles at $t = 67$:
+```{r echo=FALSE}
+print(particles[67, ])
+```
+Expected location at $t = 67$: `r mean(particles[67, ])`  
+True location at $t = 67$: `r simulation$states[67]`
+
+Particles at $t =100$:
+```{r echo=FALSE}
+print(particles[100, ])
+```
+Expected location at $t = 100$: `r mean(particles[100, ])`  
+True location at $t = 100$: `r simulation$states[100]`
+
+Frågor:
+Första observationen: sker den efter att roboten flyttat på sig eller där den börjar?
+Få sannolikhet från emission model? Kontinuerlig, så borde vara 0?
