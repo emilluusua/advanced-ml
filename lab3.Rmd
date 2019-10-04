@@ -1,10 +1,10 @@
 ---
 title: "Lab 3"
 author: "Emil Luusua"
-date: "6 October 2019"
+date: "4 October 2019"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -12,21 +12,29 @@ knitr::opts_chunk$set(echo = TRUE)
 set.seed(12)
 ```
 
-
 ## Question 1
-
-We start by defining the transition, emission and initial models. The functions rnorm and runif are used to sample from a normal/uniform distribution. The standard deviation of the emission model (sd) is taken as an argument to ease in question 2.
+We start by defining functions that sample the transition, emission and initial models. The functions rnorm and runif are used to sample from normal/uniform distributions. For the mixture models each component is sampled, and then one of these samples are chosen at random. The standard deviation of the emission model (sd) is taken as an argument to ease in question 2.
 ```{r}
-transition_model <- function(prev_pos) {
-  return((rnorm(1, prev_pos, 1) + rnorm(1, prev_pos + 1, 1) + rnorm(1, prev_pos + 2, 1)) / 3)
+transition_model <- function(prev) {
+  components <- c(rnorm(1, prev, 1), rnorm(1, prev + 1, 1), rnorm(1, prev + 2, 1))
+  return(sample(components, 1))
 }
 
 emission_model <- function(pos, sd) {
-  return((rnorm(1, pos, sd) + rnorm(1, pos - 1, sd) + rnorm(1, pos + 1, sd)) / 3)
+  components <- c(rnorm(1, pos, sd), rnorm(1, pos - 1, sd), rnorm(1, pos + 1, sd))
+  return(sample(components, 1))
 }
 
 initial_model <- function() {
   return(runif(1, 0, 100))
+}
+```
+
+We also implement a function that evaluates the probability density function of the emission model which can be used to compute the weights of the particle filter. This is done by evaluating the densities of each component and then taking the average.
+```{r}
+emission_density <- function(obs, pos, sd) {
+  components <- c(dnorm(obs, pos, sd), dnorm(obs, pos - 1, sd), dnorm(obs, pos + 1, sd))
+  return(mean(components))
 }
 ```
 
@@ -76,8 +84,7 @@ particle_filter <- function(observations, sd, use_weights) {
       bel_bar[m] <- transition_model(bel[m])
       
       if(use_weights) {
-        # Uppdatera w med hjälp av vår observation
-        w[m] <- 1
+        w[m] <- emission_density(observations[t], bel_bar[m], sd)
       }
     }
     
@@ -123,7 +130,7 @@ Expected location at $t = 100$: `r mean(particles[100, ])`
 True location at $t = 100$: `r simulation$states[100]`
 
 ## Question 2
-We now apply the same procedure, using standard deviations 5 and 50. The results are presented below, and the conclusion is that ...
+We now apply the same procedure, using standard deviations 5 and 50. The results are presented below, and unsurprisingly the conclusion is that the higher degree of variance in our observations cause the model to make more inaccurate predictions.
 
 #### Standard deviation of 5
 ```{r}
@@ -196,7 +203,7 @@ Expected location at $t = 100$: `r mean(particles[100, ])`
 True location at $t = 100$: `r simulation$states[100]`
 
 ## Question 3
-We repeat the procedure one final time, with correction weights disabled. This performs significantly worse, since it means that we do not take our observations into account at all.
+We repeat the procedure one final time, with correction weights disabled. This performs significantly worse, since it means that we do not take our observations into account at all. So basically the particle filter just performs another simulation, independent of our observations.
 
 ```{r}
 sd <- 1
@@ -231,42 +238,3 @@ print(particles[100, ])
 ```
 Expected location at $t = 100$: `r mean(particles[100, ])`  
 True location at $t = 100$: `r simulation$states[100]`
-
-#### Standard deviation of 50
-```{r}
-sd <- 50
-simulation <- simulate_SSM(sd)
-particles <- particle_filter(simulation$observation, sd, TRUE)
-```
-
-Particles at $t = 1$:
-```{r echo=FALSE}
-print(particles[1, ])
-```
-Expected location at $t = 1$: `r mean(particles[1, ])`  
-True location at $t = 1$: `r simulation$states[1]`
-
-Particles at $t = 34$:
-```{r echo=FALSE}
-print(particles[34, ])
-```
-Expected location at $t = 34$: `r mean(particles[34, ])`  
-True location at $t = 34$: `r simulation$states[34]`
-
-Particles at $t = 67$:
-```{r echo=FALSE}
-print(particles[67, ])
-```
-Expected location at $t = 67$: `r mean(particles[67, ])`  
-True location at $t = 67$: `r simulation$states[67]`
-
-Particles at $t =100$:
-```{r echo=FALSE}
-print(particles[100, ])
-```
-Expected location at $t = 100$: `r mean(particles[100, ])`  
-True location at $t = 100$: `r simulation$states[100]`
-
-Frågor:
-Första observationen: sker den efter att roboten flyttat på sig eller där den börjar?
-Få sannolikhet från emission model? Kontinuerlig, så borde vara 0?
