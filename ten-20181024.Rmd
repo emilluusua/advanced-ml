@@ -1,0 +1,118 @@
+---
+title: "ten-20181024"
+author: "Emil Luusua"
+date: "10/23/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Graphical Models
+
+```{r}
+library(bnlearn)
+library(gRain)
+library(caret)
+
+naive1 <- model2network("[A][T][L][B][D][E][X][S|A:T:L:B:D:E:X]")
+plot(naive1)
+
+set.seed(567)
+data("asia")
+ind <- sample(1:5000, 4000)
+tr <- asia[ind,]
+te <- asia[-ind,]
+labels <- te['S']
+te$S <- NULL
+
+n <- 2000
+fit <- bn.fit(naive1, tr[1:n,], method='bayes')
+naive_net <- compile(as.grain(fit))
+
+data <- list()
+for (i in seq_len(nrow(te))) {
+  evidence <- list()
+
+  for (col in colnames(te)) {
+    evidence <- append(evidence, as.character(te[i, col]))
+  }
+
+  posterior <- querygrain(setFinding(naive_net, nodes=colnames(te), states=evidence))$S
+
+  if (posterior['yes'] > posterior['no']) {
+    # Classify as positive
+    data <- append(data, 'yes')
+
+  } else {
+    # Classify as negative
+    data <- append(data, 'no')
+  }
+}
+  
+confusionMatrix(factor(unlist(data)), factor(unlist(labels)))
+```
+
+## 2. Hidden Markov Models
+
+```{r}
+library(HMM)
+states <- c('z0', 'z1', 'z2', 'z3', 'z4', 'z5', 'z6', 'z7', 'z8', 'z9')
+symbols <- c('x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9')
+
+transProbs <- matrix(c(
+  c(0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0.5),
+  c(0.5, 0.5, 0, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0.5, 0.5, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0.5, 0.5, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0.5, 0.5, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0.5, 0.5, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0.5, 0.5, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5)), 10)
+
+emissionProbs <- matrix(c(
+  c(0.2, 0.2, 0.2, 0, 0, 0, 0, 0, 0.2, 0.2),
+  c(0.2, 0.2, 0.2, 0.2, 0, 0, 0, 0, 0, 0.2),
+  c(0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0, 0, 0),
+  c(0, 0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0, 0),
+  c(0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0),
+  c(0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0, 0),
+  c(0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0),
+  c(0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2),
+  c(0.2, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2),
+  c(0.2, 0.2, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2)), 10)
+
+initialProbs <- rep(0.1, 10)
+
+hmm <- initHMM(states, symbols, transProbs = transProbs, emissionProbs = emissionProbs, startProbs = initialProbs)
+simulation <- simHMM(hmm, 100)
+
+myForward <- function(transProbs, emissionProbs, initialProbs, z) {
+  alpha <- matrix(NA, length(states), length(z))
+  alpha[, 1] <- emissionProbs[symbols==z[1], ] * initialProbs
+  for(t in 2:length(z)) {
+    alpha[, t] <- emissionProbs[symbols==z[t], ] * alpha[, t-1] %*% transProbs
+  }
+  return(alpha)
+}
+
+myForward(transProbs, emissionProbs, initialProbs, simulation$observation)[, 4]
+exp(forward(hmm, simulation$observation))[, 4]
+
+myBackward <- function(transProbs, emissionProbs, initialProbs, z) {
+  beta <- matrix(NA, length(states), length(z))
+  beta[, length(z)] <- rep(1, length(states))
+  for(t in (length(z)-1):1) {
+    beta[, t] <- (beta[, t+1] * emissionProbs[symbols==z[t+1], ]) %*% t(transProbs)
+  }
+  return(beta)
+}
+
+myBackward(transProbs, emissionProbs, initialProbs, simulation$observation)[, 95]
+exp(backward(hmm, simulation$observation))[, 95]
+```
+
+## 

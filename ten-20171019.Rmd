@@ -1,0 +1,305 @@
+---
+title: "Tentamen 2017-10-19"
+author: "Emil Luusua"
+date: "10/22/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. GRAPHICAL MODELS
+### Question 1
+```
+library(bnlearn)
+library(gRain)
+set.seed(123)
+data("asia")
+hc3<-hc(asia,restart=10,score="bde",iss=10)
+plot(hc3)
+hc4<-bn.fit(hc3,asia,method="bayes")
+hc5<-as.grain(hc4)
+hc6<-compile(hc5)
+
+hc7<-setFinding(hc6,nodes=c("S", "T", "E"),states=c("yes", "yes", "yes"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S", "T", "E"),states=c("yes", "yes", "no"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("yes","no","yes"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("yes","no","no"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("no","yes","yes"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("no","yes","no"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("no","no","yes"))
+querygrain(hc7,c("B"))
+hc7<-setFinding(hc6,nodes=c("S","T","E"),states=c("no","no","no"))
+querygrain(hc7,c("B"))
+```
+
+### Question 2
+```
+ss<-50000
+x<-random.graph(c("A","B","C","D","E"),num=ss,method="melancon",every=50,burn.in=30000)
+
+y<-unique(x)
+z<-lapply(y,cpdag)
+
+r=0
+for(i in 1:length(y)) {
+  if(all.equal(y[[i]],z[[i]])==TRUE)
+    r<-r+1
+}
+r/length(y)
+```
+
+## 2. HIDDEN MARKOV MODELS
+
+### Question 1
+```{r}
+library(HMM)
+
+states <- 1:100
+symbols <- c('0', '1')
+
+transProbs <- matrix(rep(0, 10000), 100, 100)
+for(i in 1:99) {
+  transProbs[i, i] <- 0.1
+  transProbs[i, i+1] <- 0.9
+}
+transProbs[100, 100] <- 1
+
+emissionProbs <- matrix(rep(0.1, 10000), 100, 2)
+emissionProbs[c(10:12, 20:22, 30:32), 2] <- 0.9
+emissionProbs[-c(10:12, 20:22, 30:32), 1] <- 0.9
+emissionProbs
+initialProbs <- rep(0.01, 100)
+
+hmm <- initHMM(states, symbols, transProbs = transProbs, emissionProbs = emissionProbs, startProbs = initialProbs)
+
+simHMM(hmm, 100)
+```
+
+### Question 2
+```{r}
+observations <- c('1', '1', '1', '0', '0', '0', '0', '0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '0', '0', '1', '1', '1')
+
+alpha <- exp(forward(hmm, observations))
+
+filtered <- prop.table(alpha, 2)
+
+which.maxima<-function(x){
+  return(which(x==max(x)))
+}
+
+which.maxima(filtered[, 23])
+```
+
+## 3. Gaussian Processes
+```{r}
+library(mvtnorm)
+posteriorGP = function(X,y,XStar,hyperParam,sigmaNoise){
+  n = length((X))
+  K = squeredExpKernel(X,X,hyperParam[1],hyperParam[2])
+  L = t(chol(K+(sigmaNoise^2)*diag(n)))
+  alpha = solve(t(L),solve(L,y))
+  kstar = squeredExpKernel(X,XStar,hyperParam[1], hyperParam[2])
+  fbarstar = t(kstar)%*%alpha
+  v = solve(L, kstar)
+  V.f = squeredExpKernel(XStar,XStar,hyperParam[1], hyperParam[2])-t(v)%*%v
+  return(list("Mean" = fbarstar, "Variance" = diag(V.f)))
+}
+
+squeredExpKernel= function(x1,x2,sigmaF,l){
+  n1 = length(x1)
+  n2 = length(x2)
+  k = matrix(NA,n1,n2)
+  for (i in 1:n2){
+    k[,i] = sigmaF^2*exp(-0.5*( (x1-x2[i])/l)^2 )
+  }
+  return(k)
+}
+GPkernel = function(sigmaf,ell){
+  squeredExpKernel= function(x,y){
+    n1 = length(x)
+    n2 = length(y)
+    k = matrix(NA,n1,n2)
+    for (i in 1:n2){
+      k[,i] = sigmaf^2*exp(-0.5*( (x-y[i])/ell)^2 )
+    }
+    return(k)
+  }
+  class(squeredExpKernel) <- "kernel"
+  return(squeredExpKernel)
+}
+plotGP = function(mean,variance,grid,x,y){
+  plot(grid,mean,ylim = c(min(mean-1.96*sqrt(variance))
+    ,max(mean+1.96*sqrt(variance))),
+    type = "l")
+  lines(grid,
+    mean+1.96*sqrt(variance),
+    col = rgb(0, 0, 0, 0.3))
+  lines(grid,
+    mean-1.96*sqrt(variance),
+    col = rgb(0, 0, 0, 0.3))
+  points(x,y)
+}
+```
+### (a)
+```{r}
+sigmaF <- 1
+xGrid = seq(-1,1,by=0.1)
+
+ell <- 0.2
+cov <- squeredExpKernel(xGrid, xGrid, sigmaF, ell)
+x <- rmvnorm(n=5, mean=rep(0, length(xGrid)), sigma=cov)
+plot(xGrid, x[1, ], type='l')
+for(i in 2:5) {
+  lines(xGrid, x[i, ])
+}
+```
+Correlations for $l = 0.2$:
+```{r}
+cor(x[, 11], x[, 12])
+cor(x[, 11], x[, 16])
+```
+
+```{r}
+ell <- 1
+cov <- squeredExpKernel(xGrid, xGrid, sigmaF, ell)
+x <- rmvnorm(n=5, mean=rep(0, length(xGrid)), sigma=cov)
+plot(xGrid, x[1, ], type='l')
+for(i in 2:5) {
+  lines(xGrid, x[i, ])
+}
+```
+
+Correlations for $l = 1$:
+```{r}
+cor(x[, 11], x[, 12])
+cor(x[, 11], x[, 16])
+```
+
+```{r}
+load("/Users/emilluusua/Downloads/OldExams/GPdata.RData")
+library(kernlab)
+
+GPfit = gausspr(x = x,
+  y = y,
+  kernel = GPkernel,
+  kpar = list(sigmaf = 1, ell = 0.2),
+  var = 0.2^2)
+meanPred = predict(GPfit,seq(0,1,by=0.05))
+
+var = posteriorGP(X = scale(x),
+  y = scale(y),
+  XStar = seq(0,1,by=0.05),
+  hyperParam = c(1, 0.2),
+  sigmaNoise = 0.2)$Variance
+
+plot(x, y)
+lines(seq(0,1,by=0.05), meanPred)
+lines(seq(0,1,by=0.05), meanPred + 1.96*sqrt(var))
+lines(seq(0,1,by=0.05), meanPred - 1.96*sqrt(var))
+lines(seq(0,1,by=0.05), meanPred + 1.96*sqrt(var + 0.2^2))
+lines(seq(0,1,by=0.05), meanPred - 1.96*sqrt(var + 0.2^2))
+```
+
+## 4. STATE SPACE MODELS
+```{r}
+transition_model <- function(prev) {
+  return(rnorm(1, prev + 1, 1))
+}
+emission_model <- function(pos) {
+  return(rnorm(1, pos, 5))
+}
+initial_model <- function() {
+  return(rnorm(1, 50, 10))
+}
+emission_density <- function(obs, pos) {
+  return(dnorm(obs, pos, 5))
+}
+
+simulate_SSM <- function() {
+  T <- 10000
+  initial_pos <- initial_model()
+  initial_obs <- emission_model(initial_pos)
+  res <- list()
+  res$states <- rep(initial_pos, T)
+  res$observation <- rep(initial_obs, T)
+  for (t in 2:T) {
+    res$states[t] <- transition_model(res$states[t-1])
+    res$observation[t] <- emission_model(res$states[t])
+  }
+  return(res)
+}
+
+sim <- simulate_SSM()
+```
+
+```{r}
+x <- sim$states
+z <- sim$observation
+
+kalman <- function(z) {
+  mean <- 50
+  sigma <- 10^2
+  result <- rep(0, 10000)
+  
+  for(t in 1:10000) {
+    mean_bar <- mean + 1
+    sigma_bar <- sigma + 1
+    K <- sigma_bar / (sigma_bar + 5^2)
+    mean <- mean_bar + K * (z[t] - mean_bar)
+    sigma <- (1 - K) * sigma_bar
+    result[t] <- mean
+  }
+  
+  return(result)
+}
+
+calcError <- function(true, pred) {
+  error <- abs(true - pred)
+  res <- list()
+  res$mean <- mean(error)
+  res$sd <- sd(error)
+  return(res)
+}
+
+pred <- kalman(z)
+calcError(x, pred)
+```
+
+```{r}
+particle_filter <- function(observations) {
+  # Constants
+  T <- 10000
+  M <- 100
+  
+  # Initialize variables
+  particles <- matrix(rep(0, T * M), ncol = M)
+  bel <- rep(0, M)
+  bel_bar <- rep(0, M)
+  w <- rep(1, M)
+  
+  # Generate initial particles
+  for(m in 1:M) {
+    bel[m] <- initial_model()
+  }
+  for(t in 1:T) {
+    for(m in 1:M) {
+      bel_bar[m] <- transition_model(bel[m])
+      w[m] <- emission_density(observations[t], bel_bar[m])
+    }
+    bel <- sample(bel_bar, M, replace = TRUE, prob = w)
+    particles[t, ] <- bel
+  }
+  return(particles)
+}
+
+pred <- particle_filter(z)
+calcError(x, pred)
+```

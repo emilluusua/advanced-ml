@@ -1,0 +1,264 @@
+---
+title: "Lab 4"
+author: "Emil Luusua"
+date: "10/16/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plotrix)
+library(kernlab)
+library(AtmRay)
+library(caret)
+set.seed(111)
+```
+
+## 2.1. Implementing GP Regression
+### (1)
+The function posteriorGP is implemented as it is stated in (Rasmussen and Willams, 2005).  
+```{r}
+posteriorGP <- function(X, y, XStar, sigmaNoise, k) {
+  n <- length(X)
+  
+  K <- matrix(NA, n, n)
+  for(row in 1:n) {
+    for(col in 1:n) {
+      K[row, col] <- k(X[row], X[col])
+    }
+  }
+  
+  L <- t(chol(K + sigmaNoise^2 * diag(n)))
+  alpha <- solve(t(L), solve(L, y))
+  
+  m <- length(XStar)
+  mean <- rep(0, m)
+  variance <- rep(0, m)
+  for(i in 1:m) {
+    kStar <- matrix(NA, n, 1)
+    for(row in 1:n) {
+      kStar[row] <- k(X[row], XStar[i])
+    }
+    
+    mean[i] <- t(kStar) %*% alpha
+    v <- solve(L, kStar)
+    variance[i] <- k(XStar[i], XStar[i]) - t(v) %*% v
+  }
+  
+  return(list(mean=mean, variance=variance))
+}
+```
+
+The kernel function that computes the covariance between two $x$ values is implemented, as well as a function for modelling given observations with a Gaussian Process and plotting the resulting mean with pointwise 95% confidence intervals. The observations are plotted in red.
+```{r}
+SquaredExpKernel <- function(sigmaF, l) {
+  k <- function(x1, x2) {
+    return(sigmaF^2 * exp(-0.5 * (((x1 - x2) / l)^2)))
+  }
+  class(k) <- 'kernel'
+  
+  return(k)
+}
+
+plotGP <- function(X, y, k) {
+  XStar <- seq(-1,1,length=30)
+  sigmaNoise <- 0.1
+  
+  post <- posteriorGP(X, y, XStar, sigmaNoise, k)
+  plotCI(XStar, post$mean, ui=post$mean + 2 * sqrt(post$variance), li=post$mean - 2 * sqrt(post$variance))
+  lines(XStar, post$mean)
+  points(X, y, col="red")
+}
+```
+
+### (2)
+Run the model for a single observation with $\sigma_f=1$ and $l=0.3$. It can be seen that for $x$ values far away from the observation, the model does not know the correct value for $f_*$, so the variance is high and it converges to the prior mean of 0. This is because the kernel is set to result in low covariance between observations far from eachother.
+```{r}
+sigmaF <- 1
+l <- 0.3
+k <- SquaredExpKernel(sigmaF, l)
+
+X <- c(0.4)
+y <- c(0.719)
+
+plotGP(X, y, k)
+```
+
+### (3)
+Updating the posterior model with a new observation is equivalent to directly updating the prior with both observations. This is done with the following result, again following the same pattern of converging on the prior mean far away from the observations. Since the new observation coincides with the prior mean, $f_*$ does not change but the variance around the new observation is significantly lower.
+```{r}
+X <- c(0.4, -0.6)
+y <- c(0.719, -0.044)
+plotGP(X, y, k)
+```
+
+### (4)
+The model using all 5 observations follows the same pattern as earlier ones, with the confidence intervals being greater inbetween observations. But since we now have a good spread of observations it is generally much smaller, and the function still manages to intersect all of them.
+```{r}
+X <- c(-1, -0.6, -0.2, 0.4, 0.8)
+y <- c(0.768, -0.044, -0.940, 0.719, -0.664)
+plotGP(X, y, k)
+```
+
+### (5)
+Running the model with a higher value for the $l$ hyperparameter should result in a smoother posterior function. For $l=1$, the smoothness constraint now prohibits the function from intersecting the observations points. It also results in a much more consistent confidence interval since there is not as much room for adjustment that still fit with the observations.
+```{r}
+sigmaF <- 1
+l <- 1
+k <- SquaredExpKernel(sigmaF, l)
+plotGP(X, y, k)
+```
+
+## 2.2. GP Regression with kernlab
+Load the data set and create variables temp, time and day that contains every fifth observation. Also introduce standardized versions of these variables to account for the fact that the function gausspr standardizes both $x$ and $y$. Store the mean and standard deviation of temp so that we can unscale the result in the end.
+```{r}
+data <- read.csv("https://github.com/STIMALiU/AdvMLCourse/raw/master/GaussianProcess/Code/TempTullinge.csv", header=TRUE, sep=";")
+temp <- data$temp
+time <- 1:2190
+day <- 1:2190
+for(year in 0:5) {
+  day[(year * 365 + 1): ((year + 1) * 365)] <- 1:365
+}
+
+temp <- temp[c(TRUE, FALSE, FALSE, FALSE, FALSE)]
+time <- time[c(TRUE, FALSE, FALSE, FALSE, FALSE)]
+day <- day[c(TRUE, FALSE, FALSE, FALSE, FALSE)]
+
+timeScaled <- scale(time)
+dayScaled <- scale(day)
+tempScaled <- scale(temp)
+tempMean <- attr(tempScaled, 'scaled:center')
+tempStd <- attr(tempScaled, 'scaled:scale')
+```
+
+### (1)
+The squared exponential kernel function defined earlier is reused with kernlab. Run it with some dummy inputs to validate that it works correctly.
+```{r}
+SEkernel <- SquaredExpKernel(sigmaF, l)
+SEkernel(1, 2)
+
+X <- c(1, 3, 4)
+XStar <- c(2, 3, 4)
+kernelMatrix(SEkernel, x = X, y = XStar)
+```
+
+### (2)
+The temperature is modeled as a Gaussian Process of the absolute time. Here the posterior mean is plotted, showing that it does a good job of following the observations while maintaining good smoothness.
+```{r}
+sigmaf <- 20
+ell <- 0.2
+
+polyFit <- lm(tempScaled ~  timeScaled + I(timeScaled^2))
+sigmaNoise <- sd(polyFit$residuals)
+
+GPfit <- gausspr(timeScaled, tempScaled, kernel = SquaredExpKernel, kpar = list(sigmaF <- sigmaf, l <- ell), var = sigmaNoise^2)
+meanPred1 <- predict(GPfit, timeScaled)
+plot(time, temp)
+lines(time, meanPred1 * tempStd + tempMean, col='red', lwd = 2)
+```
+
+### (3)
+The 95% probability bands for $f$ are plotted, calculated from the posterior variance which can be computed by the function posteriorGP implemented earlier. The mean is plotted in red and the bands in blue.
+```{r}
+SEkernel <- SquaredExpKernel(sigmaf, ell)
+var1 <- posteriorGP(X = timeScaled, 
+                   y = tempScaled, 
+                   XStar = timeScaled, 
+                   sigmaNoise = sigmaNoise, 
+                   k = SEkernel)$variance
+
+plot(time, temp)
+lines(time, meanPred1 * tempStd + tempMean, col='red', lwd = 2)
+lines(time, (meanPred1 - 1.96*sqrt(var1)) * tempStd + tempMean, col = "blue")
+lines(time, (meanPred1 + 1.96*sqrt(var1)) * tempStd + tempMean, col = "blue")
+```
+
+
+### (4)
+The temperature is modelled as a Gaussian Process depending on the day of the year. This results in the predictions becoming periodic, i.e. the same for each year and no global trend or individual deviations within a single year is taken into account. It obviously has an easier time picking up on the cyclical nature of the data, but since the previous model was already capable of doing this, the day model seems to be strictly worse.
+```{r}
+polyFit <- lm(tempScaled ~  dayScaled + I(dayScaled^2))
+sigmaNoise <- sd(polyFit$residuals)
+
+GPfit <- gausspr(dayScaled, tempScaled, kernel = SquaredExpKernel, kpar = list(sigmaF <- sigmaf, l <- ell), var = sigmaNoise^2)
+meanPred2 <- predict(GPfit, dayScaled)
+
+plot(time, temp)
+lines(time, meanPred1 * tempStd + tempMean, col='red', lwd = 2)
+lines(time, meanPred2 * tempStd + tempMean, col='blue', lwd = 2)
+```
+
+### (5)
+The periodic kernel is implemented.
+```{r}
+PeriodicKernel <- function(sigmaF, l1, l2, d) {
+  k <- function(x1, x2) {
+    return(sigmaF^2 * exp(-0.5 * (((x1 - x2)/l2)^2)) * exp(-2 * (sin(pi / d * abs(x1 - x2))/l1)^2))
+  }
+  class(k) <- 'kernel'
+  
+  return(k)
+}
+```
+
+A model utilizing the periodic kernel (plotted in green) is compared to the previous models. Theoretically, it should be able to pick up both on the cyclical pattern in the data and the global trend, but with this particular hyperparameter configuration is seems similar to the first model, except it is less smooth.
+```{r}
+ell1 <- 1
+ell2 <- 10
+d <- 365 / sd(time)
+
+polyFit <- lm(tempScaled ~  timeScaled + I(timeScaled^2))
+sigmaNoise <- sd(polyFit$residuals)
+
+GPfit <- gausspr(timeScaled, tempScaled, kernel = PeriodicKernel, kpar = list(sigmaF <- sigmaf, l1 <- ell1, l2 <- ell2, d <- d), var = sigmaNoise^2)
+meanPred3 <- predict(GPfit, timeScaled)
+
+plot(time, temp)
+lines(time, meanPred1 * tempStd + tempMean, col='red')
+lines(time, meanPred2 * tempStd + tempMean, col='blue')
+lines(time, meanPred3 * tempStd + tempMean, col='green', lwd = 2)
+```
+
+## 2.3. GP Classification with kernlab
+Data is loaded and indices for training data are sampled.
+```{r}
+data <- read.csv("https://github.com/STIMALiU/AdvMLCourse/raw/master/GaussianProcess/Code/banknoteFraud.csv", header=FALSE, sep=",")
+names(data) <- c("varWave","skewWave","kurtWave","entropyWave","fraud")
+data[,5] <- as.factor(data[,5])
+
+SelectTraining <- sample(1:dim(data)[1], size = 1000, replace = FALSE)
+```
+
+### (1)
+A Gaussian Process model is fitted for fraud classification using covariants varWave and skewWave. The confusion matrix with accuracy is printed, and the contour plot shows the probablity distribution for frauds over the covariant input space. The actual data points overlay the contour plots, and a clear correspondece between these and the contours can be seen.
+```{r}
+GPfit <- gausspr(fraud ~ varWave + skewWave, data=data[SelectTraining, ])
+confusionMatrix(table(predict(GPfit, data[SelectTraining, 1:2]), data[SelectTraining, 5]))
+
+x1 <- seq(min(data[,1]),max(data[,1]),length=100)
+x2 <- seq(min(data[,2]),max(data[,2]),length=100)
+gridPoints <- meshgrid(x1, x2)
+gridPoints <- cbind(c(gridPoints$x), c(gridPoints$y))
+
+gridPoints <- data.frame(gridPoints)
+names(gridPoints) <- names(data)[1:2]
+probPreds <- predict(GPfit, gridPoints, type="probabilities")
+contour(x1,x2,matrix(probPreds[,2],100,byrow = TRUE), 20, xlab = "varWave", ylab = "skewWave", main = 'Prob(Fraud) - Fraud is blue')
+points(data[data[,5]==0,1],data[data[,5]==0,2],col="red")
+points(data[data[,5]==1,1],data[data[,5]==1,2],col="blue")
+```
+
+### (2)
+Predictions are made on our test data which the model has not seen previously, and the confusion matrix with accuracy is printed.
+```{r}
+confusionMatrix(table(predict(GPfit, data[-SelectTraining, 1:2]), data[-SelectTraining, 5]))
+```
+
+### (3)
+A new model is trained using all of the 4 covariates, the resulting test accuracy is substantially better than the model only using 2 covariates. This suggests that these features hold valuable information that can be used to accurately predict frauds.
+```{r}
+GPfit <- gausspr(fraud ~ varWave + skewWave + kurtWave + entropyWave, data=data[SelectTraining, ])
+confusionMatrix(table(predict(GPfit, data[-SelectTraining, 1:4]), data[-SelectTraining, 5]))
+```

@@ -101,31 +101,31 @@ We apply the particle filter to our simulated observations and show the particle
 particles <- particle_filter(simulation$observation, 1, TRUE)
 ```
 
-Particles at $t = 1$:
 ```{r echo=FALSE}
-print(particles[1, ])
+hist(particles[1, ], main = 'Particles at t = 1', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 1$: `r mean(particles[1, ])`  
 True location at $t = 1$: `r simulation$states[1]`
 
-Particles at $t = 34$:
 ```{r echo=FALSE}
-print(particles[34, ])
+hist(particles[34, ], main = 'Particles at t = 34', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 34$: `r mean(particles[34, ])`  
 True location at $t = 34$: `r simulation$states[34]`
 
-Particles at $t = 67$:
 ```{r echo=FALSE}
-print(particles[67, ])
+hist(particles[67, ], main = 'Particles at t = 67', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 67$: `r mean(particles[67, ])`  
 True location at $t = 67$: `r simulation$states[67]`
 
-Particles at $t =100$:
 ```{r echo=FALSE}
-print(particles[100, ])
+hist(particles[100, ], main = 'Particles at t = 100', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 100$: `r mean(particles[100, ])`  
 True location at $t = 100$: `r simulation$states[100]`
 
@@ -139,31 +139,31 @@ simulation <- simulate_SSM(sd)
 particles <- particle_filter(simulation$observation, sd, TRUE)
 ```
 
-Particles at $t = 1$:
 ```{r echo=FALSE}
-print(particles[1, ])
+hist(particles[1, ], main = 'Particles at t = 1', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 1$: `r mean(particles[1, ])`  
 True location at $t = 1$: `r simulation$states[1]`
 
-Particles at $t = 34$:
 ```{r echo=FALSE}
-print(particles[34, ])
+hist(particles[34, ], main = 'Particles at t = 34', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 34$: `r mean(particles[34, ])`  
 True location at $t = 34$: `r simulation$states[34]`
 
-Particles at $t = 67$:
 ```{r echo=FALSE}
-print(particles[67, ])
+hist(particles[67, ], main = 'Particles at t = 67', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 67$: `r mean(particles[67, ])`  
 True location at $t = 67$: `r simulation$states[67]`
 
-Particles at $t =100$:
 ```{r echo=FALSE}
-print(particles[100, ])
+hist(particles[100, ], main = 'Particles at t = 100', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 100$: `r mean(particles[100, ])`  
 True location at $t = 100$: `r simulation$states[100]`
 
@@ -174,31 +174,31 @@ simulation <- simulate_SSM(sd)
 particles <- particle_filter(simulation$observation, sd, TRUE)
 ```
 
-Particles at $t = 1$:
 ```{r echo=FALSE}
-print(particles[1, ])
+hist(particles[1, ], main = 'Particles at t = 1', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 1$: `r mean(particles[1, ])`  
 True location at $t = 1$: `r simulation$states[1]`
 
-Particles at $t = 34$:
 ```{r echo=FALSE}
-print(particles[34, ])
+hist(particles[34, ], main = 'Particles at t = 34', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 34$: `r mean(particles[34, ])`  
 True location at $t = 34$: `r simulation$states[34]`
 
-Particles at $t = 67$:
 ```{r echo=FALSE}
-print(particles[67, ])
+hist(particles[67, ], main = 'Particles at t = 67', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 67$: `r mean(particles[67, ])`  
 True location at $t = 67$: `r simulation$states[67]`
 
-Particles at $t =100$:
 ```{r echo=FALSE}
-print(particles[100, ])
+hist(particles[100, ], main = 'Particles at t = 100', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 100$: `r mean(particles[100, ])`  
 True location at $t = 100$: `r simulation$states[100]`
 
@@ -211,30 +211,30 @@ simulation <- simulate_SSM(sd)
 particles <- particle_filter(simulation$observation, sd, FALSE)
 ```
 
-Particles at $t = 1$:
 ```{r echo=FALSE}
-print(particles[1, ])
+hist(particles[1, ], main = 'Particles at t = 1', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 1$: `r mean(particles[1, ])`  
 True location at $t = 1$: `r simulation$states[1]`
 
-Particles at $t = 34$:
 ```{r echo=FALSE}
-print(particles[34, ])
+hist(particles[34, ], main = 'Particles at t = 34', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 34$: `r mean(particles[34, ])`  
 True location at $t = 34$: `r simulation$states[34]`
 
-Particles at $t = 67$:
 ```{r echo=FALSE}
-print(particles[67, ])
+hist(particles[67, ], main = 'Particles at t = 67', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 67$: `r mean(particles[67, ])`  
 True location at $t = 67$: `r simulation$states[67]`
 
-Particles at $t =100$:
 ```{r echo=FALSE}
-print(particles[100, ])
+hist(particles[100, ], main = 'Particles at t = 100', xlab = 'Particle position', ylab = '# of particles')
 ```
+
 Expected location at $t = 100$: `r mean(particles[100, ])`  
 True location at $t = 100$: `r simulation$states[100]`
